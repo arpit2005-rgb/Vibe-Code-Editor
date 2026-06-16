@@ -12,11 +12,19 @@ import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { signIn } from "@/auth";
 
+/**
+ * Initiates sign-in via Google OAuth.
+ */
 async function handleGoogleSignIn() {
   "use server";
   await signIn("google");
 }
 
+/**
+ * Initiates GitHub sign-in.
+ *
+ * @beta
+ */
 async function handleGithubSignIn() {
   "use server";
   await signIn("github");
