@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Root layout component for the application.
+ *
+ * Wraps page content with header and footer elements, and applies styled background layers.
+ */
 export default function HomeLayout({
   children,
 }: {

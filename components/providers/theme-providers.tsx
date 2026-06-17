@@ -3,6 +3,9 @@
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
+/**
+ * Wraps the next-themes provider to enable theme management across the application.
+ */
 export function ThemeProvider({
   children,
   ...props
