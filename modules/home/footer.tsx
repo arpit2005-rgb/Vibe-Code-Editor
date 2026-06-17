@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
 
+/**
+ * Renders a footer section containing social media links and a copyright notice.
+ */
 export function Footer() {
   const socialLinks = [
     {

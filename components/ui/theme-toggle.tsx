@@ -4,6 +4,9 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Moon, Sun, SunMoon } from "lucide-react";
 
+/**
+ * Renders a clickable toggle to switch the application theme between light and dark modes.
+ */
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
   const [mounted, setMounted] = useState(false);

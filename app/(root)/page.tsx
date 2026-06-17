@@ -3,6 +3,9 @@ import { cn } from "@/lib/utils";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+/**
+ * Renders the home page with a hero section, product description, and call-to-action button.
+ */
 export default function Home() {
   return (
     <div className=" z-20 flex flex-col items-center justify-start min-h-screen py-2 mt-10">

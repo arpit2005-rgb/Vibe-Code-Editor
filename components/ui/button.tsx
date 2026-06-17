@@ -39,6 +39,16 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * Renders a styled button with customizable variants and sizes.
+ *
+ * By default renders a native button element. When `asChild` is `true`, applies button styling to the provided child element instead.
+ *
+ * @param className - Additional CSS classes to apply.
+ * @param variant - The visual style variant. Defaults to `"default"`.
+ * @param size - The size variant. Defaults to `"default"`.
+ * @param asChild - If `true`, applies button styling to the child element. Defaults to `false`.
+ */
 function Button({
   className,
   variant = "default",

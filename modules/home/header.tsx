@@ -3,6 +3,12 @@ import Image from "next/image";
 import UserButton from "../auth/components/user-button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
+/**
+ * Renders a sticky navigation header with the site logo, navigation links, theme toggle, and user controls.
+ *
+ * Displays responsive navigation: full "Docs" and "API" links with theme and user controls on desktop,
+ * simplified navigation with the same controls on mobile devices.
+ */
 export function Header() {
   return (
     <>
