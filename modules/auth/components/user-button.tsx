@@ -23,7 +23,7 @@ const UserButton = () => {
         <div className={cn("relative rounded-full")}>
           <Avatar>
             <AvatarImage src={user?.image!} alt={user?.name!} />
-            <AvatarFallback className="bg-red-500">
+            <AvatarFallback className="bg-violet-500">
               <User className="text-white" />
             </AvatarFallback>
           </Avatar>
