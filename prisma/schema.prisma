@@ -25,6 +25,7 @@ model User {
   email    String    @unique
   image    String?
   accounts Account[]
+  staredPlayground StarMark[]
   role     UserRole  @default(USER)
 
   myPlayground Playground[]
@@ -66,6 +67,7 @@ model Playground {
   id String @id @default(cuid()) @map("_id")
   title String
   description String
+  Starmark StarMark[]
   template Templates @default(REACT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -74,3 +76,14 @@ model Playground {
 }
 
 //Playground = Coding Project / Workspace / Editor Project. Not a physical ground 😂😂.
+
+model StarMark{
+  id String @id @default(cuid()) @map("_id")
+  userId String
+  playgroundId String
+  isMarked Boolean
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playground Playground @relation(fields: [playgroundId], references: [id], onDelete: Cascade)
+  @@unique([userId, playgroundId])
+}
