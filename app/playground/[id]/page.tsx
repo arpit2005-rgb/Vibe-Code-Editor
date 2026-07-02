@@ -14,7 +14,11 @@ import { TemplateFileTree } from "@/modules/playground/components/playground-exp
 import { useFileExplorer } from "@/modules/playground/hooks/useFileExplorer";
 import { TemplateFile } from "@/modules/playground/lib/path-to-json";
 import { Button } from "@/components/ui/button";
-import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { Bot, FileText, Save, Settings, X } from "lucide-react";
 import {
   DropdownMenu,
@@ -25,6 +29,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PlaygroundEditor from "@/modules/playground/components/playground-editor";
+import { useWebContainer } from "@/modules/webcontainers/hooks/useWebContainer";
+import WebContainerPreview from "@/modules/webcontainers/components/webcontainer-preview";
 
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +58,17 @@ const MainPlaygroundPage = () => {
     openFile,
     openFiles,
   } = useFileExplorer();
+
+  const {
+    serverUrl,
+    isLoading: containerLoading,
+    error: containerError,
+    instance,
+    writeFileSync,
+  } = useWebContainer({
+    // @ts-ignore
+    templateData,
+  });
 
   useEffect(() => {
     setPlaygroundId(id);
@@ -216,6 +233,22 @@ const MainPlaygroundPage = () => {
                       onContentChange={() => {}}
                     />
                   </ResizablePanel>
+                  {isPreviewVisible && (
+                    <>
+                      <ResizableHandle />
+                      <ResizablePanel defaultSize={50}>
+                        <WebContainerPreview
+                          templateData={templateData!}
+                          instance={instance}
+                          writeFileSync={writeFileSync}
+                          isLoading={containerLoading}
+                          error={containerError}
+                          serverUrl={serverUrl!}
+                          forceResetup={false}
+                        />
+                      </ResizablePanel>
+                    </>
+                  )}
                 </ResizablePanelGroup>
               </div>
             </div>
