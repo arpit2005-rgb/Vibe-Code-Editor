@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 interface CodeSuggestionRequest {
-  FileContent: string;
+  fileContent: string;
   cursorLine: number;
   cursorColumn: number;
   suggestionType: string;
@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
   try {
     const body: CodeSuggestionRequest = await request.json();
 
-    const { FileContent, cursorLine, cursorColumn, suggestionType, fileName } =
+    const { fileContent, cursorLine, cursorColumn, suggestionType, fileName } =
       body;
 
-    if (!FileContent || cursorLine < 0 || cursorColumn < 0 || !suggestionType) {
+    if (!fileContent || cursorLine < 0 || cursorColumn < 0 || !suggestionType) {
       return NextResponse.json(
         { error: "Invalid input parameters" },
         { status: 400 },
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     const context = analyzeCodeContext(
-      FileContent,
+      fileContent,
       cursorLine,
       cursorColumn,
       fileName,
@@ -75,7 +75,7 @@ function analyzeCodeContext(
   const currentLine = lines[line] || "";
 
   // Get surrounding context (10 lines before and after)
-  const contextRadius = 10;
+  const contextRadius = 3;
   const startLine = Math.max(0, line - contextRadius);
   const endLine = Math.min(lines.length, line + contextRadius);
 
@@ -137,7 +137,7 @@ Generate suggestion:`;
 
 async function generateSuggestion(prompt: string): Promise<string> {
   try {
-    const response = await fetch("https://localhost:11434/api/generate", {
+    const response = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -147,8 +147,8 @@ async function generateSuggestion(prompt: string): Promise<string> {
         prompt,
         stream: false,
         option: {
-          temprature: 0.7,
-          max_tokens: 300,
+          temprature: 0.1,
+          max_tokens: 20,
         },
       }),
     });
