@@ -1,7 +1,8 @@
 "use client";
+
 import { useParams } from "next/navigation";
 import { usePlayground } from "@/modules/playground/hooks/usePlayground";
-import React, { use, useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -41,13 +42,14 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaygroundEditor } from "@/modules/playground/components/playground-editor";
 import { useWebContainer } from "@/modules/webcontainers/hooks/useWebContainer";
-import WebContainerPreview from "@/modules/webcontainers/components/webcontainer-preview";
+import WebContainerPreview, {
+  type WebContainerPreviewHandle,
+} from "@/modules/webcontainers/components/webcontainer-preview";
 import LoadingStep from "@/modules/playground/components/loader";
 import { findFilePath } from "@/modules/playground/lib";
 import { toast } from "sonner";
 import ToggleAI from "@/modules/playground/components/toggle-ai";
 import { useAISuggestions } from "@/modules/playground/hooks/useAiSuggestion";
-import { editor } from "monaco-editor";
 
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -63,8 +65,10 @@ const MainPlaygroundPage = () => {
   } = usePlayground(id);
 
   const aiSuggestions = useAISuggestions();
+
   console.log(templateData);
   console.log(playgroundData);
+
   const {
     setTemplateData,
     setActiveFileId,
@@ -96,6 +100,9 @@ const MainPlaygroundPage = () => {
   });
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
+
+  // Ref used to reload only the preview iframe after saving.
+  const previewRef = useRef<WebContainerPreviewHandle>(null);
 
   useEffect(() => {
     setPlaygroundId(id);
@@ -172,6 +179,7 @@ const MainPlaygroundPage = () => {
   );
 
   const activeFile = openFiles.find((f) => f.id === activeFileId);
+
   const hasUnsavedChanges = openFiles.some((f) => f.hasUnsavedChanges);
 
   const handleFileSelect = (file: TemplateFile) => {
@@ -181,6 +189,7 @@ const MainPlaygroundPage = () => {
   const handleSave = useCallback(
     async (fileId?: string) => {
       const targetFileId = fileId || activeFileId;
+
       if (!targetFileId) return;
 
       const fileToSave = openFiles.find((f) => f.id === targetFileId);
@@ -188,10 +197,12 @@ const MainPlaygroundPage = () => {
       if (!fileToSave) return;
 
       const latestTemplateData = useFileExplorer.getState().templateData;
+
       if (!latestTemplateData) return;
 
       try {
         const filePath = findFilePath(fileToSave, latestTemplateData);
+
         if (!filePath) {
           toast.error(
             `Could not find path for file: ${fileToSave.filename}.${fileToSave.fileExtension}`,
@@ -203,36 +214,51 @@ const MainPlaygroundPage = () => {
           JSON.stringify(latestTemplateData),
         );
 
-        // @ts-ignore
-        const updateFileContent = (items: any[]) =>
-          // @ts-ignore
+        const updateFileContent = (items: any[]): any[] =>
           items.map((item) => {
             if ("folderName" in item) {
-              return { ...item, items: updateFileContent(item.items) };
+              return {
+                ...item,
+                items: updateFileContent(item.items),
+              };
             } else if (
               item.filename === fileToSave.filename &&
               item.fileExtension === fileToSave.fileExtension
             ) {
-              return { ...item, content: fileToSave.content };
+              return {
+                ...item,
+                content: fileToSave.content,
+              };
             }
+
             return item;
           });
+
         updatedTemplateData.items = updateFileContent(
           updatedTemplateData.items,
         );
 
-        // Sync with WebContainer
+        // Sync edited file with WebContainer.
         if (writeFileSync) {
           await writeFileSync(filePath, fileToSave.content);
+
           lastSyncedContent.current.set(fileToSave.id, fileToSave.content);
+
           if (instance && instance.fs) {
             await instance.fs.writeFile(filePath, fileToSave.content);
           }
         }
 
+        // Save updated code to database.
         const newTemplateData = await saveTemplateData(updatedTemplateData);
+
         setTemplateData(newTemplateData! || updatedTemplateData);
-        // Update open files
+
+        // Reload the preview iframe so it requests
+        // the newly saved file.
+        previewRef.current?.reload();
+
+        // Update open files.
         const updatedOpenFiles = openFiles.map((f) =>
           f.id === targetFileId
             ? {
@@ -243,6 +269,7 @@ const MainPlaygroundPage = () => {
               }
             : f,
         );
+
         setOpenFiles(updatedOpenFiles);
 
         toast.success(
@@ -250,9 +277,11 @@ const MainPlaygroundPage = () => {
         );
       } catch (error) {
         console.error("Error saving file:", error);
+
         toast.error(
           `Failed to save ${fileToSave.filename}.${fileToSave.fileExtension}`,
         );
+
         throw error;
       }
     },
@@ -277,6 +306,7 @@ const MainPlaygroundPage = () => {
 
     try {
       await Promise.all(unsavedFiles.map((f) => handleSave(f.id)));
+
       toast.success(`Saved ${unsavedFiles.length} file(s)`);
     } catch (error) {
       toast.error("Failed to save some files");
@@ -290,7 +320,9 @@ const MainPlaygroundPage = () => {
         handleSave();
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
+
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave]);
 
@@ -298,10 +330,13 @@ const MainPlaygroundPage = () => {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)] p-4">
         <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+
         <h2 className="text-xl font-semibold text-red-600 mb-2">
           Something went wrong
         </h2>
+
         <p className="text-gray-600 mb-4">{error}</p>
+
         <Button onClick={() => window.location.reload()} variant="destructive">
           Try Again
         </Button>
@@ -309,7 +344,6 @@ const MainPlaygroundPage = () => {
     );
   }
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)] p-4">
@@ -317,17 +351,20 @@ const MainPlaygroundPage = () => {
           <h2 className="text-xl font-semibold mb-6 text-center">
             Loading Playground
           </h2>
+
           <div className="mb-8">
             <LoadingStep
               currentStep={1}
               step={1}
               label="Loading playground data"
             />
+
             <LoadingStep
               currentStep={2}
               step={2}
               label="Setting up environment"
             />
+
             <LoadingStep currentStep={3} step={3} label="Ready to code" />
           </div>
         </div>
@@ -335,14 +372,15 @@ const MainPlaygroundPage = () => {
     );
   }
 
-  // No template data
   if (!templateData) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)] p-4">
         <FolderOpen className="h-12 w-12 text-amber-500 mb-4" />
+
         <h2 className="text-xl font-semibold text-amber-600 mb-2">
           No template data available
         </h2>
+
         <Button onClick={() => window.location.reload()} variant="outline">
           Reload Template
         </Button>
@@ -366,15 +404,19 @@ const MainPlaygroundPage = () => {
           onRenameFolder={wrappedHandleRenameFolder}
         />
       </>
+
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
+
           <Separator orientation="vertical" className="mr-2 h-4" />
+
           <div className="flex flex-1 items-center gap-2">
             <div className="flex flex-col flex-1">
               <h1 className="text-sm font-medium">
                 {playgroundData?.title || "Code Playground"}
               </h1>
+
               <p className="text-xs text-muted-foreground">
                 {openFiles.length} File(s) Open
                 {hasUnsavedChanges && " • Unsaved changes"}
@@ -393,6 +435,7 @@ const MainPlaygroundPage = () => {
                     <Save className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
+
                 <TooltipContent>Save (Ctrl+S)</TooltipContent>
               </Tooltip>
 
@@ -404,29 +447,36 @@ const MainPlaygroundPage = () => {
                     onClick={() => handleSaveAll()}
                     disabled={!hasUnsavedChanges}
                   >
-                    <Save className="h-4 w-4" /> All
+                    <Save className="h-4 w-4" />
+                    All
                   </Button>
                 </TooltipTrigger>
+
                 <TooltipContent>Save All (Ctrl+Shift+S)</TooltipContent>
               </Tooltip>
+
               <ToggleAI
                 isEnabled={aiSuggestions.isEnabled}
                 onToggle={aiSuggestions.toggleEnabled}
                 suggestionLoading={aiSuggestions.isLoading}
               />
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="outline">
                     <Settings className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
+
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     onClick={() => setIsPreviewVisible(!isPreviewVisible)}
                   >
                     {isPreviewVisible ? "Hide" : "Show"} Preview
                   </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem onClick={closeAllFiles}>
                     Close All Files
                   </DropdownMenuItem>
@@ -435,6 +485,7 @@ const MainPlaygroundPage = () => {
             </div>
           </div>
         </header>
+
         <div className="h-[calc(100vh-4rem)]">
           {openFiles.length > 0 ? (
             <div className="h-full flex flex-col">
@@ -453,12 +504,15 @@ const MainPlaygroundPage = () => {
                         >
                           <div className="flex items-center gap-2">
                             <FileText className="h-3 w-3" />
+
                             <span>
                               {file.filename}.{file.fileExtension}
                             </span>
+
                             {file.hasUnsavedChanges && (
                               <span className="h-2 w-2 rounded-full bg-orange-500" />
                             )}
+
                             <span
                               className="ml-2 h-4 w-4 hover:bg-destructive hover:text-destructive-foreground rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                               onClick={(e) => {
@@ -486,6 +540,7 @@ const MainPlaygroundPage = () => {
                   </div>
                 </Tabs>
               </div>
+
               <div className="flex-1 overflow-hidden">
                 <ResizablePanelGroup
                   orientation="horizontal"
@@ -514,11 +569,14 @@ const MainPlaygroundPage = () => {
                       }}
                     />
                   </ResizablePanel>
+
                   {isPreviewVisible && (
                     <>
                       <ResizableHandle />
+
                       <ResizablePanel defaultSize={50}>
                         <WebContainerPreview
+                          ref={previewRef}
                           templateData={templateData!}
                           instance={instance}
                           writeFileSync={writeFileSync}
@@ -536,8 +594,10 @@ const MainPlaygroundPage = () => {
           ) : (
             <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4">
               <FileText className="h-16 w-16 text-gray-300" />
+
               <div className="text-center">
                 <p className="text-lg font-medium">No files open</p>
+
                 <p className="text-sm text-gray-500">
                   Select a file from the sidebar to start editing
                 </p>
