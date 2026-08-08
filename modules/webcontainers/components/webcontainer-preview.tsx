@@ -20,7 +20,7 @@ export interface WebContainerPreviewHandle {
 
 interface WebContainerPreviewProps {
   templateData: TemplateFolder;
-  serverUrl: string;
+  serverUrl: string | null;
   isLoading: boolean;
   error: string | null;
   instance: WebContainer | null;
@@ -44,7 +44,7 @@ const WebContainerPreview = forwardRef<
     },
     ref,
   ) => {
-    const [previewUrl, setPreviewUrl] = useState<string>("");
+    const [previewUrl, setPreviewUrl] = useState<string>(serverUrl || "");
     const [previewKey, setPreviewKey] = useState(0);
 
     const [loadingState, setLoadingState] = useState({
@@ -64,6 +64,25 @@ const WebContainerPreview = forwardRef<
 
     const terminalRef = useRef<any>(null);
 
+    // Keep preview URL synchronized with the WebContainer hook.
+    useEffect(() => {
+      if (serverUrl) {
+        console.log("Using WebContainer server URL:", serverUrl);
+
+        setPreviewUrl(serverUrl);
+
+        setLoadingState((prev) => ({
+          ...prev,
+          starting: false,
+          ready: true,
+        }));
+
+        setCurrentStep(4);
+        setIsSetupComplete(true);
+        setIsSetupInProgress(false);
+      }
+    }, [serverUrl]);
+
     // Reload only the preview iframe.
     // WebContainer and development server remain running.
     useImperativeHandle(
@@ -76,6 +95,7 @@ const WebContainerPreview = forwardRef<
       [],
     );
 
+    // Force complete setup again when requested.
     useEffect(() => {
       if (forceResetup) {
         setIsSetupComplete(false);
@@ -101,6 +121,9 @@ const WebContainerPreview = forwardRef<
           setIsSetupInProgress(true);
           setSetupError(null);
 
+          // ---------------------------------------------------------
+          // Check whether this WebContainer already has a project.
+          // ---------------------------------------------------------
           try {
             const packageJsonExists = await instance.fs.readFile(
               "package.json",
@@ -114,7 +137,35 @@ const WebContainerPreview = forwardRef<
                 );
               }
 
-              instance.on("server-ready", (port: number, url: string) => {
+              // IMPORTANT:
+              // If the WebContainer hook already knows the server URL,
+              // use it immediately instead of waiting for server-ready.
+              if (serverUrl) {
+                if (terminalRef.current?.writeToTerminal) {
+                  terminalRef.current.writeToTerminal(
+                    `🌐 Reconnected to server at ${serverUrl}\r\n`,
+                  );
+                }
+
+                setPreviewUrl(serverUrl);
+
+                setLoadingState((prev) => ({
+                  ...prev,
+                  starting: false,
+                  ready: true,
+                }));
+
+                setCurrentStep(4);
+                setIsSetupComplete(true);
+                setIsSetupInProgress(false);
+
+                return;
+              }
+
+              // If serverUrl is not available yet, listen for server-ready.
+              const handleServerReady = (port: number, url: string) => {
+                console.log(`WebContainer server ready on port ${port}:`, url);
+
                 if (terminalRef.current?.writeToTerminal) {
                   terminalRef.current.writeToTerminal(
                     `🌐 Reconnected to server at ${url}\r\n`,
@@ -128,7 +179,13 @@ const WebContainerPreview = forwardRef<
                   starting: false,
                   ready: true,
                 }));
-              });
+
+                setCurrentStep(4);
+                setIsSetupComplete(true);
+                setIsSetupInProgress(false);
+              };
+
+              instance.on("server-ready", handleServerReady);
 
               setCurrentStep(4);
 
@@ -140,10 +197,14 @@ const WebContainerPreview = forwardRef<
               return;
             }
           } catch (err) {
-            // package.json does not exist, so continue with setup
+            // package.json does not exist,
+            // so this is a fresh WebContainer.
+            console.log("No existing package.json. Starting fresh setup.");
           }
 
+          // ---------------------------------------------------------
           // Step 1: Transform template data
+          // ---------------------------------------------------------
           setLoadingState((prev) => ({
             ...prev,
             transforming: true,
@@ -168,7 +229,9 @@ const WebContainerPreview = forwardRef<
 
           setCurrentStep(2);
 
+          // ---------------------------------------------------------
           // Step 2: Mount files
+          // ---------------------------------------------------------
           if (terminalRef.current?.writeToTerminal) {
             terminalRef.current.writeToTerminal(
               "📂 Mounting files to WebContainer...\r\n",
@@ -191,7 +254,9 @@ const WebContainerPreview = forwardRef<
 
           setCurrentStep(3);
 
+          // ---------------------------------------------------------
           // Step 3: Install dependencies
+          // ---------------------------------------------------------
           if (terminalRef.current?.writeToTerminal) {
             terminalRef.current.writeToTerminal(
               "📦 Installing dependencies...\r\n",
@@ -232,7 +297,9 @@ const WebContainerPreview = forwardRef<
 
           setCurrentStep(4);
 
+          // ---------------------------------------------------------
           // Step 4: Start server
+          // ---------------------------------------------------------
           if (terminalRef.current?.writeToTerminal) {
             terminalRef.current.writeToTerminal(
               "🚀 Starting the development server...\r\n",
@@ -242,6 +309,8 @@ const WebContainerPreview = forwardRef<
           const startProcess = await instance.spawn("npm", ["run", "start"]);
 
           instance.on("server-ready", (port: number, url: string) => {
+            console.log(`WebContainer server ready on port ${port}:`, url);
+
             if (terminalRef.current?.writeToTerminal) {
               terminalRef.current.writeToTerminal(
                 `🌐 Server ready at ${url}\r\n`,
@@ -295,8 +364,11 @@ const WebContainerPreview = forwardRef<
       }
 
       setupContainer();
-    }, [instance, templateData, isSetupComplete, isSetupInProgress]);
+    }, [instance, templateData, isSetupComplete, isSetupInProgress, serverUrl]);
 
+    // ---------------------------------------------------------
+    // Loading state
+    // ---------------------------------------------------------
     if (isLoading) {
       return (
         <div className="h-full flex items-center justify-center">
@@ -313,6 +385,9 @@ const WebContainerPreview = forwardRef<
       );
     }
 
+    // ---------------------------------------------------------
+    // Error state
+    // ---------------------------------------------------------
     if (error || setupError) {
       return (
         <div className="h-full flex items-center justify-center">
@@ -329,6 +404,9 @@ const WebContainerPreview = forwardRef<
       );
     }
 
+    // ---------------------------------------------------------
+    // Progress helpers
+    // ---------------------------------------------------------
     const getStepIcon = (stepIndex: number) => {
       if (stepIndex < currentStep) {
         return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -360,6 +438,9 @@ const WebContainerPreview = forwardRef<
       );
     };
 
+    // ---------------------------------------------------------
+    // UI
+    // ---------------------------------------------------------
     return (
       <div className="h-full w-full flex flex-col">
         {!previewUrl ? (
