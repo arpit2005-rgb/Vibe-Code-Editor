@@ -85,12 +85,8 @@ async function generateWithGemini(messages: ChatMessage[]): Promise<string> {
   const prompt = buildPrompt(messages);
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.6-flash",
     contents: prompt,
-    config: {
-      temperature: 0.7,
-      maxOutputTokens: 1000,
-    },
   });
 
   if (!response.text) {
@@ -130,7 +126,7 @@ export async function POST(req: NextRequest) {
         )
       : [];
 
-    // Keep only the latest 10 messages
+    // Keep latest 10 messages
     const recentHistory = validHistory.slice(-10);
 
     const messages: ChatMessage[] = [
@@ -142,7 +138,7 @@ export async function POST(req: NextRequest) {
     ];
 
     // =========================
-    // Provider selection
+    // Select AI provider
     // =========================
 
     const provider =
@@ -153,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     if (provider === "gemini") {
       aiResponse = await generateWithGemini(messages);
-      model = "gemini-2.5-flash";
+      model = "gemini-3.6-flash";
     } else if (provider === "ollama") {
       aiResponse = await generateWithOllama(messages);
       model = "codellama:latest";
