@@ -1,4 +1,3 @@
-import { warn } from "console";
 import { useState, useCallback } from "react";
 
 interface AISuggestionsState {
@@ -27,7 +26,10 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
   });
 
   const toggleEnabled = useCallback(() => {
-    setState((prev) => ({ ...prev, isEnabled: !prev.isEnabled }));
+    setState((prev) => ({
+      ...prev,
+      isEnabled: !prev.isEnabled,
+    }));
   }, []);
 
   const fetchSuggestion = useCallback(async (type: string, editor: any) => {
@@ -47,7 +49,10 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
         return currentState;
       }
 
-      const newState = { ...currentState, isLoading: true };
+      const newState = {
+        ...currentState,
+        isLoading: true,
+      };
 
       (async () => {
         try {
@@ -71,8 +76,10 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
           }
 
           const data = await response.json();
+
           if (data.suggestion) {
             const suggestionText = data.suggestion.trim();
+
             setState((prev) => ({
               ...prev,
               suggestion: suggestionText,
@@ -84,6 +91,7 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
             }));
           } else {
             console.warn("No suggestion received from API.");
+
             setState((prev) => ({
               ...prev,
               isLoading: false,
@@ -94,6 +102,7 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
             ...prev,
             isLoading: false,
           }));
+
           console.error("Error fetching AI suggestion:", error);
         }
       })();
@@ -104,29 +113,13 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
 
   const acceptSuggestion = useCallback((editor: any, monaco: any) => {
     setState((currentState) => {
-      if (
-        !currentState.suggestion ||
-        !currentState.position ||
-        !editor ||
-        !monaco
-      ) {
+      if (!currentState.suggestion || !currentState.position) {
         return currentState;
       }
 
-      const { line, column } = currentState.position;
-      const sanitizedSuggestion = currentState.suggestion.replace(
-        /^\d+:\s*/gm,
-        "",
-      );
-
-      editor.executeEdits("", [
-        {
-          range: new monaco.Range(line, column, line, column),
-          text: sanitizedSuggestion,
-          forceMoveMarkers: true,
-        },
-      ]);
-
+      // The actual editor insertion is handled by
+      // PlaygroundEditor.acceptCurrentSuggestion().
+      // We only clear the suggestion state here.
       if (editor && currentState.decoration.length > 0) {
         editor.deltaDecorations(currentState.decoration, []);
       }
@@ -136,6 +129,7 @@ export const useAISuggestions = (): UseAISuggestionsReturn => {
         suggestion: null,
         position: null,
         decoration: [],
+        isLoading: false,
       };
     });
   }, []);

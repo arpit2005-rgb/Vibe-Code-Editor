@@ -8,10 +8,6 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Terminal } from "xterm";
-import { FitAddon } from "xterm-addon-fit";
-import { WebLinksAddon } from "xterm-addon-web-links";
-import { SearchAddon } from "xterm-addon-search";
 import "xterm/css/xterm.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,9 +34,12 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
     ref,
   ) => {
     const terminalRef = useRef<HTMLDivElement>(null);
-    const term = useRef<Terminal | null>(null);
-    const fitAddon = useRef<FitAddon | null>(null);
-    const searchAddon = useRef<SearchAddon | null>(null);
+
+    // xterm types are loaded dynamically on the client
+    const term = useRef<any>(null);
+    const fitAddon = useRef<any>(null);
+    const searchAddon = useRef<any>(null);
+
     const [isConnected, setIsConnected] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearch, setShowSearch] = useState(false);
@@ -117,9 +116,11 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
           term.current.write(data);
         }
       },
+
       clearTerminal: () => {
         clearTerminal();
       },
+
       focusTerminal: () => {
         if (term.current) {
           term.current.focus();
@@ -138,6 +139,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
         ) {
           commandHistory.current.push(command);
         }
+
         historyIndex.current = -1;
 
         try {
@@ -152,6 +154,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
             commandHistory.current.forEach((cmd, index) => {
               term.current!.writeln(`  ${index + 1}  ${cmd}`);
             });
+
             writePrompt();
             return;
           }
@@ -168,6 +171,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
 
           // Execute in WebContainer
           term.current.writeln("");
+
           const process = await webContainerInstance.spawn(cmd, args, {
             terminal: {
               cols: term.current.cols,
@@ -190,6 +194,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
 
           // Wait for process to complete
           const exitCode = await process.exit;
+
           currentProcess.current = null;
 
           // Show new prompt
@@ -199,6 +204,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
             term.current.writeln(`\r\nCommand not found: ${command}`);
             writePrompt();
           }
+
           currentProcess.current = null;
         }
       },
@@ -220,6 +226,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
               currentLine.current =
                 currentLine.current.slice(0, cursorPosition.current - 1) +
                 currentLine.current.slice(cursorPosition.current);
+
               cursorPosition.current--;
 
               // Update terminal display
@@ -232,6 +239,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
               currentProcess.current.kill();
               currentProcess.current = null;
             }
+
             term.current.writeln("^C");
             writePrompt();
             break;
@@ -247,10 +255,13 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
               // Clear current line and write history command
               const historyCommand =
                 commandHistory.current[historyIndex.current];
+
               term.current.write(
                 "\r$ " + " ".repeat(currentLine.current.length) + "\r$ ",
               );
+
               term.current.write(historyCommand);
+
               currentLine.current = historyCommand;
               cursorPosition.current = historyCommand.length;
             }
@@ -260,19 +271,25 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
             if (historyIndex.current !== -1) {
               if (historyIndex.current < commandHistory.current.length - 1) {
                 historyIndex.current++;
+
                 const historyCommand =
                   commandHistory.current[historyIndex.current];
+
                 term.current.write(
                   "\r$ " + " ".repeat(currentLine.current.length) + "\r$ ",
                 );
+
                 term.current.write(historyCommand);
+
                 currentLine.current = historyCommand;
                 cursorPosition.current = historyCommand.length;
               } else {
                 historyIndex.current = -1;
+
                 term.current.write(
                   "\r$ " + " ".repeat(currentLine.current.length) + "\r$ ",
                 );
+
                 currentLine.current = "";
                 cursorPosition.current = 0;
               }
@@ -286,7 +303,9 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
                 currentLine.current.slice(0, cursorPosition.current) +
                 data +
                 currentLine.current.slice(cursorPosition.current);
+
               cursorPosition.current++;
+
               term.current.write(data);
             }
             break;
@@ -295,7 +314,17 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
       [executeCommand, writePrompt],
     );
 
-    const initializeTerminal = useCallback(() => {
+    // Initialize xterm only on the client
+    const initializeTerminal = useCallback(async () => {
+      if (!terminalRef.current || term.current) return;
+
+      // Load xterm only in the browser
+      const { Terminal } = await import("xterm");
+      const { FitAddon } = await import("xterm-addon-fit");
+      const { WebLinksAddon } = await import("xterm-addon-web-links");
+      const { SearchAddon } = await import("xterm-addon-search");
+
+      // Component may have unmounted while imports were loading
       if (!terminalRef.current || term.current) return;
 
       const terminal = new Terminal({
@@ -347,12 +376,16 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
 
       try {
         setIsConnected(true);
+
         term.current.writeln("✅ Connected to WebContainer");
         term.current.writeln("Ready to execute commands");
+
         writePrompt();
       } catch (error) {
         setIsConnected(false);
+
         term.current.writeln("❌ Failed to connect to WebContainer");
+
         console.error("WebContainer connection error:", error);
       }
     }, [webContainerInstance, writePrompt]);
@@ -368,6 +401,7 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
     const copyTerminalContent = useCallback(async () => {
       if (term.current) {
         const content = term.current.getSelection();
+
         if (content) {
           try {
             await navigator.clipboard.writeText(content);
@@ -385,17 +419,27 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
 
         for (let i = 0; i < buffer.length; i++) {
           const line = buffer.getLine(i);
+
           if (line) {
             content += line.translateToString(true) + "\n";
           }
         }
 
-        const blob = new Blob([content], { type: "text/plain" });
+        const blob = new Blob([content], {
+          type: "text/plain",
+        });
+
         const url = URL.createObjectURL(blob);
+
         const a = document.createElement("a");
+
         a.href = url;
-        a.download = `terminal-log-${new Date().toISOString().slice(0, 19)}.txt`;
+        a.download = `terminal-log-${new Date()
+          .toISOString()
+          .slice(0, 19)}.txt`;
+
         a.click();
+
         URL.revokeObjectURL(url);
       }
     }, []);
@@ -424,12 +468,15 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
 
       return () => {
         resizeObserver.disconnect();
+
         if (currentProcess.current) {
           currentProcess.current.kill();
         }
+
         if (shellProcess.current) {
           shellProcess.current.kill();
         }
+
         if (term.current) {
           term.current.dispose();
           term.current = null;
@@ -458,10 +505,13 @@ const TerminalComponent = forwardRef<TerminalRef, TerminalProps>(
               <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
             </div>
+
             <span className="text-sm font-medium">WebContainer Terminal</span>
+
             {isConnected && (
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+
                 <span className="text-xs text-muted-foreground">Connected</span>
               </div>
             )}
